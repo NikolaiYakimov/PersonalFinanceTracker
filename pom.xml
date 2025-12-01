@@ -9,7 +9,7 @@
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
 	<groupId>com.finance</groupId>
-	<artifactId>tracker</artifactId>
+	<artifactId>PersonalFinanceTracker</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>tracker</name>
 	<description>Personal Finance Tracker</description>
