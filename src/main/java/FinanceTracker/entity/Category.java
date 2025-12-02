@@ -2,13 +2,13 @@ package FinanceTracker.entity;
 
 import FinanceTracker.enums.TransactionType;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 @Entity
 @Table(name = "categories")
 @Data
+//@Getter
+//@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 public class Category {
@@ -24,7 +24,7 @@ public class Category {
     @Column(nullable = false)
     private TransactionType type;
 
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "user_id")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id",nullable = false)
     private User user;
 }
