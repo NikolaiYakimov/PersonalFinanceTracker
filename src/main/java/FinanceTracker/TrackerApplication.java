@@ -1,4 +1,4 @@
-package com.finance.tracker;
+package FinanceTracker;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -9,6 +9,7 @@ public class TrackerApplication {
 	public static void main(String[] args) {
 
 		SpringApplication.run(TrackerApplication.class, args);
+        System.out.println("Hello World");
 	}
 
 }
