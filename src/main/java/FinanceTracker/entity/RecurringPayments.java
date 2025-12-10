@@ -37,18 +37,18 @@ public class RecurringPayments {
     private LocalDateTime nextRunDate;
 
     @Column(nullable = false)
-    private boolean isActive=true;
+    private boolean isActive = true;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "category_id",nullable = false)
+    @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id",nullable = false)
+    @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
-@JoinColumn(name = "currency_id",nullable = false)
+    @JoinColumn(name = "currency_id", nullable = false)
     private Currency currency;
 
 }
