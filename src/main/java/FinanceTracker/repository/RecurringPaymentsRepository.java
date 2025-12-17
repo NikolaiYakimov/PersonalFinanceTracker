@@ -31,7 +31,7 @@ public interface RecurringPaymentsRepository extends JpaRepository<RecurringPaym
 
 
     //Check if the user have current active payment for given service
-    boolean existsByUserIdAndDescriptionAndIsActiveTrue(Long userId,String description);
+    boolean existsByUserIdAndDescriptionIgnoreCaseAndIsActiveTrue(Long userId,String description);
 
 
 
