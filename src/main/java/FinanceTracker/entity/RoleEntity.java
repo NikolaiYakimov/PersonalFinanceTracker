@@ -1,21 +1,22 @@
 package FinanceTracker.entity;
 
+import FinanceTracker.enums.Role;
 import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
 @Table
 @Data
-
 @NoArgsConstructor
 @AllArgsConstructor
-public class Role {
+public class RoleEntity {
 
     @Id
     @GeneratedValue(strategy=GenerationType.IDENTITY)
     private Long id;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false,unique = true)
-    private String name;
+    private Role name;
 
 }

@@ -20,7 +20,7 @@ public interface BudgetRepository extends JpaRepository<Budget, Long> {
             "AND b.category.id = :categoryId " +
             "AND :date BETWEEN b.startDate AND b.endDate")
     Optional<Budget> findActiveBudgetByCategory(@Param("userId") Long userId,
-                                                @Param("category_id") Long categoryId,
+                                                @Param("categoryId") Long categoryId,
                                                 @Param("date") LocalDate date);
 
     @Query("SELECT b FROM Budget b " +
