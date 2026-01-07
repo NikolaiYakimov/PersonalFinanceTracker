@@ -49,7 +49,7 @@ public class UserMapper {
         user.setUsername(dto.username());
         user.setEmail(dto.email());
         //Service need to encode this
-        user.setPassword(dto.password());
+//        user.setPassword(dto.password());
         return user;
     }
 
