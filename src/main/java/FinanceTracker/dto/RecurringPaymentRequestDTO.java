@@ -1,5 +1,6 @@
 package FinanceTracker.dto;
 
+import FinanceTracker.enums.Frequency;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -22,6 +23,9 @@ public record RecurringPaymentRequestDTO(
 
         @NotNull(message = "Start date is required")
         LocalDateTime startDate,
+
+        @NotNull(message = "Frequency is required ( DAILY, WEEKLY, MONTHLY, QUARTERLY, YEARLY )")
+        Frequency frequency,
 
         String currencyCode
 ) {

@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class RecurringPaymentMapper {
 
-    public RecurringPayments toEntity(RecurringPaymentRequestDTO dto, User user, Category category, Currency currency){
+    public RecurringPayments toEntity(RecurringPaymentRequestDTO dto, User user, Category category, Currency currency) {
         if (dto == null)
             throw new IllegalArgumentException("RecurringPaymentRequestDTO cannot be null");
 
@@ -21,9 +21,10 @@ public class RecurringPaymentMapper {
         if (category == null)
             throw new IllegalArgumentException("Category cannot be null");
 
-        RecurringPayments payment= new RecurringPayments();
+        RecurringPayments payment = new RecurringPayments();
         payment.setAmount(dto.amount());
         payment.setDescription(dto.description());
+        payment.setFrequency(dto.frequency());
         payment.setStartDate(dto.startDate());
         payment.setNextRunDate(dto.startDate());
         payment.setActive(true);
@@ -34,8 +35,8 @@ public class RecurringPaymentMapper {
         return payment;
     }
 
-    public RecurringPaymentResponseDTO toDto(RecurringPayments payment){
-        if(payment==null)
+    public RecurringPaymentResponseDTO toDto(RecurringPayments payment) {
+        if (payment == null)
             throw new IllegalArgumentException("Payment cannot be null");
 
         return new RecurringPaymentResponseDTO(
@@ -45,8 +46,8 @@ public class RecurringPaymentMapper {
                 payment.getCategory().getName(),
                 payment.getNextRunDate().toLocalDate(),
                 payment.isActive(),
-                payment.getCurrency().getCode(),
-                payment.getCurrency().getSymbol()
+                (payment.getCurrency() != null) ? payment.getCurrency().getCode() : "BGN",
+                (payment.getCurrency() != null) ? payment.getCurrency().getSymbol() : "лв"
         );
 
     }
