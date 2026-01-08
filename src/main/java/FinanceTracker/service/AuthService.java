@@ -9,6 +9,7 @@ import FinanceTracker.enums.Role;
 import FinanceTracker.mapper.UserMapper;
 import FinanceTracker.repository.RoleRepository;
 import FinanceTracker.repository.UserRepository;
+import FinanceTracker.security.JwtService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -24,7 +25,7 @@ public class AuthService {
     private final UserMapper userMapper;
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationManager authenticationManager;
-//    private final JwtService jwtService;
+    private final JwtService jwtService;
 
     @Transactional
     private AuthResponseDTO register(RegisterRequest request)
@@ -46,8 +47,8 @@ public class AuthService {
         user.getRoles().add(userRole);
 
         userRepository.save(user);
-//        String token=jwtService.generateToken(user)
-                String token="123";
+        String token=jwtService.generateToken(user);
+
         return userMapper.toAuthResponse(user,token);
     }
 
@@ -59,8 +60,7 @@ public class AuthService {
     User user=userRepository.findByUsername(request.username())
             .orElseThrow(() -> new RuntimeException("Username Not Found"));
 
-//    String token = jwtService.generateToken(user);
-    String token="123";
+    String token = jwtService.generateToken(user);
     return userMapper.toAuthResponse(user,token);
     }
 
