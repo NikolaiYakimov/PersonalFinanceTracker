@@ -13,7 +13,17 @@ public record BudgetRequestDTO(
         @Positive(message = "Limit amount must be positive")
         BigDecimal amount,
 
-        LocalDate date
+        @NotNull(message = "Start date is required")
+        LocalDate startDate,
 
-        ) {
+        @NotNull(message = "End date is required")
+        LocalDate endDate
+
+) {
+    public BudgetRequestDTO {
+        if (startDate != null && endDate != null && endDate.isBefore(startDate))
+        {
+            throw new IllegalArgumentException("End date cannot be before start date");
+        }
+    }
 }

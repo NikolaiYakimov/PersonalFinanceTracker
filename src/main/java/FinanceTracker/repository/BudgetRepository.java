@@ -30,4 +30,15 @@ public interface BudgetRepository extends JpaRepository<Budget, Long> {
                                       @Param("date") LocalDate date);
 
     boolean existsByUserIdAndCategoryIdAndStartDate(Long userId,Long categoryId,LocalDate startDate);
+
+
+    @Query("SELECT COUNT(b) > 0 FROM Budget b " +
+            "WHERE b.user.id = :userId " +
+            "AND b.category.id = :categoryId " +
+            "AND (" +
+            "   (b.startDate BETWEEN :start AND :end) OR " +
+            "   (b.endDate BETWEEN :start AND :end) OR " +
+            "   (:start BETWEEN b.startDate AND b.endDate)" +
+            ")")
+    boolean existOverlappingBudget(Long userId,Long categoryId,LocalDate startDate,LocalDate endDate);
 }

@@ -24,13 +24,13 @@ public class BudgetMapper {
             throw new IllegalArgumentException("Category cannot be null");
 
 
-        LocalDate refDate = (dto.date() != null) ? dto.date() : LocalDate.now();
+//        LocalDate refDate = (dto.date() != null) ? dto.date() : LocalDate.now();
 
         var builder = Budget.builder()
                 .user(user)
                 .category(category)
-                .startDate(refDate.withDayOfMonth(1))
-                .endDate(refDate.withDayOfMonth(refDate.lengthOfMonth()));
+                .startDate(dto.startDate())
+                .endDate(dto.endDate());
 
         if (dto.amount() != null) {
             builder.limitAmount(dto.amount());
