@@ -19,6 +19,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import static java.util.stream.Collectors.toList;
+
 @Service
 @RequiredArgsConstructor
 public class BudgetService {
@@ -30,17 +32,59 @@ public class BudgetService {
     private final BudgetMapper budgetMapper;
 
     //Get active budgets
-    public List<BudgetResponseDTO> getMyBudgets(Long userId) {
+    public List<BudgetResponseDTO> getMyActiveBudgets(Long userId) {
         LocalDate now = LocalDate.now();
         List<Budget> budgets = budgetRepository.findAllActiveBudgets(userId, now);
 
         return budgets.stream()
-                .map(budget -> {
-                    BigDecimal spent = getSpentAmountForBudget(budget);
-                    return budgetMapper.toDto(budget, spent);
-                })
+                .map(this::mapToDtoWithSpentAmount)
                 .toList();
     }
+
+    public List<BudgetResponseDTO> getMyBudgetHistory(Long userId) {
+        LocalDate now = LocalDate.now();
+        List<Budget> budgets = budgetRepository.findAllPastBudgets(userId, now);
+
+        return budgets.stream()
+                .map(this::mapToDtoWithSpentAmount)
+                .toList();
+    }
+
+    public List<BudgetResponseDTO> getPastAndActiveBudgets(Long userId) {
+        List<Budget> budgets=budgetRepository.findByUserId(userId);
+
+        return budgets.stream()
+                .map(this::mapToDtoWithSpentAmount)
+                .toList();
+    }
+
+
+    public BudgetResponseDTO getBudgetById(Long budgetId, Long userId) {
+        Budget budget = budgetRepository.findById(budgetId)
+                .orElseThrow(() -> new RuntimeException("Budget Not Found"));
+
+        if (!budget.getUser().getId().equals(userId)) {
+            throw new RuntimeException("Unauthorized! This budget is not yours");
+        }
+        return mapToDtoWithSpentAmount(budget);
+    }
+
+
+    public boolean willTransactionExceedBudget(Long userId, Long categoryId, BigDecimal transactionAmount, LocalDate transactionDate) {
+        var budgetOptional = budgetRepository.findActiveBudgetByCategory(userId, categoryId, transactionDate);
+
+        if (budgetOptional.isEmpty()) {
+            return false;
+        }
+        Budget budget = budgetOptional.get();
+
+        BigDecimal currSpent = getSpentAmountForBudget(budget);
+        BigDecimal totalAfterTransaction = currSpent.add(transactionAmount);
+
+        return totalAfterTransaction.compareTo(budget.getLimitAmount()) > 0;
+
+    }
+
 
     @Transactional
     public void createBudget(BudgetRequestDTO budgetRequestDTO, Long userId) {
@@ -62,14 +106,58 @@ public class BudgetService {
     }
 
     @Transactional
-    public void deleteBudget(Long id,Long userId){
-        Budget budget=budgetRepository.findById(id)
-                .orElseThrow(()-> new RuntimeException("Budget is not found"));
+    public BudgetResponseDTO updateBudget(Long id, BudgetRequestDTO budgetRequestDTO, Long userId) {
+        Budget budget = budgetRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Budget is not found"));
 
-        if(!budget.getUser().getId().equals(userId))
+        if (!budget.getUser().getId().equals(userId)) {
+            throw new RuntimeException("Unauthorized! This budget is not yours");
+        }
+
+        boolean isCategoryChanged = !budget.getCategory().getId().equals(budgetRequestDTO.categoryId());
+        boolean areDateChanged = !budget.getStartDate().equals(budgetRequestDTO.startDate()) ||
+                !budget.getEndDate().equals(budgetRequestDTO.endDate());
+
+        if (isCategoryChanged || areDateChanged) {
+            boolean overlap = budgetRepository.existOverlappingBudgetExcludingCurrent(userId,
+                    budgetRequestDTO.categoryId(),
+                    budgetRequestDTO.startDate(),
+                    budgetRequestDTO.endDate(),
+                    id);
+
+            if (overlap) {
+                throw new RuntimeException("Updated budget overlaps with another existing budget!");
+            }
+
+        }
+
+        budget.setLimitAmount(budgetRequestDTO.amount());
+        budget.setStartDate(budgetRequestDTO.startDate());
+        budget.setEndDate(budgetRequestDTO.endDate());
+        if (isCategoryChanged) {
+            Category newCategory = categoryRepository.findById(budgetRequestDTO.categoryId())
+                    .orElseThrow(() -> new RuntimeException("Category is not found"));
+            budget.setCategory(newCategory);
+        }
+
+        Budget updatedBudget = budgetRepository.save(budget);
+        BigDecimal spent = getSpentAmountForBudget(updatedBudget);
+        return budgetMapper.toDto(updatedBudget, spent);
+    }
+
+    @Transactional
+    public void deleteBudget(Long id, Long userId) {
+        Budget budget = budgetRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Budget is not found"));
+
+        if (!budget.getUser().getId().equals(userId))
             throw new RuntimeException("Unauthorized! This budget is not yours");
 
         budgetRepository.delete(budget);
+    }
+    private BudgetResponseDTO mapToDtoWithSpentAmount(Budget budget) {
+        BigDecimal spent = getSpentAmountForBudget(budget);
+        return budgetMapper.toDto(budget, spent);
     }
 
     private BigDecimal getSpentAmountForBudget(Budget budget) {

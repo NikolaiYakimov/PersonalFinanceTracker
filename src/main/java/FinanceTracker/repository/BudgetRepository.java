@@ -1,6 +1,7 @@
 package FinanceTracker.repository;
 
 import FinanceTracker.entity.Budget;
+import org.springframework.cglib.core.Local;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -29,7 +30,15 @@ public interface BudgetRepository extends JpaRepository<Budget, Long> {
     List<Budget> findAllActiveBudgets(@Param("userId") Long userId,
                                       @Param("date") LocalDate date);
 
-    boolean existsByUserIdAndCategoryIdAndStartDate(Long userId,Long categoryId,LocalDate startDate);
+    @Query("SELECT b FROM Budget b "+
+            "WHERE b.user.id = :userId "+
+            "AND b.endDate < :now ORDER BY b.endDate DESC")
+    List<Budget> findAllPastBudgets(@Param("userId") Long userId,
+                                    @Param("date") LocalDate date);
+
+
+
+
 
 
     @Query("SELECT COUNT(b) > 0 FROM Budget b " +
@@ -41,4 +50,18 @@ public interface BudgetRepository extends JpaRepository<Budget, Long> {
             "   (:start BETWEEN b.startDate AND b.endDate)" +
             ")")
     boolean existOverlappingBudget(Long userId,Long categoryId,LocalDate startDate,LocalDate endDate);
+
+    @Query("SELECT COUNT(b) > 0 FROM Budget b " +
+            "WHERE b.user.id = :userId " +
+            "AND b.category.id = :categoryId " +
+            "AND b.id != :excludedBudgetId " +
+            "AND (" +
+            "   (b.startDate BETWEEN :start AND :end) OR " +
+            "   (b.endDate BETWEEN :start AND :end) OR " +
+            "   (:start BETWEEN b.startDate AND b.endDate)" +
+            ")")
+    boolean existOverlappingBudgetExcludingCurrent(Long userId,Long categoryId,LocalDate startDate,LocalDate endDate,Long excludedBudgetId);
+
+
+    boolean existsByUserIdAndCategoryIdAndStartDate(Long userId,Long categoryId,LocalDate startDate);
 }
