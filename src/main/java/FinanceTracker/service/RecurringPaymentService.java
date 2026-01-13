@@ -12,6 +12,7 @@ import FinanceTracker.mapper.RecurringPaymentMapper;
 import FinanceTracker.repository.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cglib.core.Local;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,7 @@ import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class RecurringPaymentService {
 
     private final RecurringPaymentsRepository recurringPaymentsRepository;
@@ -34,13 +36,14 @@ public class RecurringPaymentService {
     private final TransactionService transactionService;
 
     public List<RecurringPaymentResponseDTO> getMyRecurringPayments(Long userId){
-        return recurringPaymentsRepository.findByUserIdAndIsActiveTrue(userId).stream()
+        return recurringPaymentsRepository.findByUserIdAndIsActiveTrue(userId)
+                .stream()
                 .map(recurringPaymentMapper::toDto)
                 .toList();
     }
 
     @Transactional
-    public void createPayment(RecurringPaymentRequestDTO dto,Long userId){
+    public RecurringPaymentResponseDTO createPayment(RecurringPaymentRequestDTO dto,Long userId){
         User user=userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -55,11 +58,82 @@ public class RecurringPaymentService {
         {
             throw new RuntimeException("Cannot have 2 recurring payments for same thing");
         }
-        RecurringPayments recurringPayments=recurringPaymentMapper.toEntity(dto,user,category,currency);
+        RecurringPayments recurringPayment=recurringPaymentMapper.toEntity(dto,user,category,currency);
+
+        recurringPayment.setActive(true);
+        if(recurringPayment.getNextRunDate()==null)
+        {
+            recurringPayment.setNextRunDate(dto.startDate());
+        }
+
+        RecurringPayments savedRecurringPayment= recurringPaymentsRepository.save(recurringPayment);
+        return recurringPaymentMapper.toDto(savedRecurringPayment);
+    }
+    @Transactional
+    public RecurringPaymentResponseDTO updatePayment(Long id,RecurringPaymentRequestDTO dto,Long userId){
+
+        RecurringPayments recurringPayment=recurringPaymentsRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Payment not found"));
+
+        if(!recurringPayment.getUser().getId().equals(userId)){
+            throw new RuntimeException("Unauthorized! You cannot update payment that is not yours!");
+        }
+
+        recurringPayment.setAmount(dto.amount());
+        recurringPayment.setDescription(dto.description());
+        recurringPayment.setFrequency(dto.frequency());
+
+        if (!recurringPayment.getStartDate().isEqual(dto.startDate())){
+            recurringPayment.setStartDate(dto.startDate());
+            recurringPayment.setNextRunDate(dto.startDate());
+        }
+
+        RecurringPayments savedRecurringPayment=recurringPaymentsRepository.save(recurringPayment);
+        return recurringPaymentMapper.toDto(savedRecurringPayment);
+
+    }
+
+    public void toggleActiveStatus(Long id,Long userId){
+        RecurringPayments recurringPayments=recurringPaymentsRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Payment not found"));
+
+        if(!recurringPayments.getUser().getId().equals(userId)){
+            throw new RuntimeException("Unauthorized! Cannot changed status of payment of payment that is not yours!");
+        }
+
+        recurringPayments.setActive(!recurringPayments.isActive());
         recurringPaymentsRepository.save(recurringPayments);
     }
 
-    //TODO : Need to think about the logic for deleting(only unActive ones or from all)
+    @Transactional
+    public void skipNextPayment(Long id,Long userId){
+        RecurringPayments recurringPayment=recurringPaymentsRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Payment not found"));
+
+        if (!recurringPayment.getUser().getId().equals(userId))
+        {
+            throw new RuntimeException("Unauthorized");
+        }
+
+        LocalDateTime currentNextPaymentDate=recurringPayment.getNextRunDate();
+        LocalDateTime newNextPaymentDate=updateNextDate(currentNextPaymentDate,recurringPayment.getFrequency());
+
+        recurringPayment.setNextRunDate(newNextPaymentDate);
+        recurringPaymentsRepository.save(recurringPayment);
+    }
+
+    public List<RecurringPaymentResponseDTO> getUpcomingPayments(Long userId,int days){
+        LocalDateTime now=LocalDateTime.now();
+        LocalDateTime end=now.plusDays(days);
+
+        return recurringPaymentsRepository.findUpcomingPayments(userId,now,end)
+                .stream()
+                .map(recurringPaymentMapper::toDto)
+                .toList()
+                ;
+    }
+
+
     @Transactional
     public void delete(Long id,Long userId){
         RecurringPayments recurringPayments=recurringPaymentsRepository.findById(id)
@@ -73,41 +147,54 @@ public class RecurringPaymentService {
     }
 
     @Scheduled (cron = "0 0 8 * * ?")
-    @Transactional
     public void processDuePayments(){
         LocalDateTime now=LocalDateTime.now();
+        log.info("Starting recurring payments check for date: {}", now);
+
         List<RecurringPayments> duePayments=recurringPaymentsRepository.findDuePayments(now);
 
-        for (RecurringPayments payments: duePayments)
+        for (RecurringPayments payment: duePayments)
         {
-            TransactionRequestDTO toDto=new TransactionRequestDTO(
-                    payments.getAmount(),
-                    "Auto payment: " + payments.getDescription(),
-                    now,
-                    payments.getCategory().getId(),
-                    payments.getCurrency().getCode()
-                    );
-            transactionService.createTransaction(toDto,payments.getUser().getId());
-            updateNextDate(payments);
-            recurringPaymentsRepository.save(payments);
+            try {
+                processSinglePayment(payment);
+            } catch (Exception e) {
+                // If payment of someone make error,we don't want to stop others , that's why we put Try-Catch is in the loop,!
+                // Ако плащането на Иван гръмне, не искаме да спрем плащането на Мария.
+                log.error("Failed to process payment ID: " + payment.getId(), e);
+            }
         }
     }
 
 
-    //TODO Need to add method for unActive recurring payment
+    public void processSinglePayment(RecurringPayments payment){
+        TransactionRequestDTO transactionRequestDTO=new TransactionRequestDTO(
+                payment.getAmount(),
+                "Auto: " + payment.getDescription(),
+                LocalDateTime.now(),
+                payment.getCategory().getId(),
+                payment.getCurrency().getCode()
+        );
 
-    private void updateNextDate(RecurringPayments payments){
-        LocalDateTime cur=payments.getNextRunDate();
-        Frequency frequency=payments.getFrequency();
+        transactionService.createTransaction(transactionRequestDTO,payment.getUser().getId());
 
-        LocalDateTime nextPaymentDate=switch (frequency){
-            case DAILY -> cur.plusDays(1);
-            case WEEKLY -> cur.plusWeeks(1);
-            case MONTHLY -> cur.plusMonths(1);
-            case QUARTERLY -> cur.plusMonths(3);
-            case YEARLY -> cur.plusYears(1);
+        payment.setNextRunDate(updateNextDate(payment.getNextRunDate(),payment.getFrequency()));
+        recurringPaymentsRepository.save(payment);
+
+        log.info("Processed payment ID: {}", payment.getId());
+
+    }
+
+    private LocalDateTime updateNextDate(LocalDateTime current, Frequency frequency){
+
+
+        return switch (frequency){
+            case DAILY -> current.plusDays(1);
+            case WEEKLY -> current.plusWeeks(1);
+            case MONTHLY -> current.plusMonths(1);
+            case QUARTERLY -> current.plusMonths(3);
+            case YEARLY -> current.plusYears(1);
         };
-        payments.setNextRunDate(nextPaymentDate);
+
     }
 
 }

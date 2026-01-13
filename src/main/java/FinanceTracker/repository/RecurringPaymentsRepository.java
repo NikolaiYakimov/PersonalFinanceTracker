@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -28,8 +29,14 @@ public interface RecurringPaymentsRepository extends JpaRepository<RecurringPaym
     @Query("SELECT r FROM RecurringPayments r " +
             "WHERE r.isActive = true " +
             "AND r.nextRunDate <= :now")
-    List<RecurringPayments> findDuePayments(@Param("nextRunDate") LocalDateTime now);
+    List<RecurringPayments> findDuePayments(@Param("now") LocalDateTime now);
 
+    @Query("SELECT r FROM RecurringPayments r " +
+            "WHERE r.user.id = :userId " +
+            "AND r.isActive = true " +
+            "AND r.nextRunDate BETWEEN :start AND :end " +
+            "ORDER BY r.nextRunDate ASC")
+    List<RecurringPayments> findUpcomingPayments(@Param("userId") Long userId,@Param("start") LocalDateTime start,@Param("end") LocalDateTime end);
 
     //Check if the user have current active payment for given service
     boolean existsByUserIdAndDescriptionIgnoreCaseAndIsActiveTrue(Long userId,String description);
