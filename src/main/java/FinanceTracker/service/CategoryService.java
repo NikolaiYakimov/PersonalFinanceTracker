@@ -6,9 +6,7 @@ import FinanceTracker.entity.Category;
 import FinanceTracker.entity.User;
 import FinanceTracker.enums.TransactionType;
 import FinanceTracker.mapper.CategoryMapper;
-import FinanceTracker.repository.CategoryRepository;
-import FinanceTracker.repository.TransactionRepository;
-import FinanceTracker.repository.UserRepository;
+import FinanceTracker.repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +20,8 @@ public class CategoryService {
     private final UserRepository userRepository;
     private final CategoryMapper categoryMapper;
     private final TransactionRepository transactionRepository;
+    private final BudgetRepository budgetRepository;
+    private final RecurringPaymentsRepository recurringPaymentsRepository;
 
     //Get All categories for the user
     public List<CategoryResponseDTO> getAllCategories(Long userId) {
@@ -55,9 +55,47 @@ public class CategoryService {
         return categoryMapper.toDto(category);
     }
 
+    public List<CategoryResponseDTO> searchCategories(Long userId, String keyword) {
+        return categoryRepository.searchByName(keyword, userId)
+                .stream()
+                .map(categoryMapper::toDto)
+                .toList();
+    }
+
+
+    //Merge Categories(Transfer all transaction from category A in category B and delete category A)
+    public void mergeCategory(Long sourceCategoryId,Long targetCategoryId,Long userId) {
+
+        Category sourceCategory=categoryRepository.findById(sourceCategoryId)
+                .orElseThrow(() -> new RuntimeException("Source category not found"));
+
+        Category targetCategory=categoryRepository.findById(targetCategoryId)
+                .orElseThrow(() -> new RuntimeException("Source category not found"));
+
+        if(sourceCategory.getUser()==null){
+            throw new RuntimeException("Cannot delete/merge system category");
+        }
+
+        if (!sourceCategory.getUser().getId().equals(userId)) {
+            throw new RuntimeException("Unauthorized!Cannot delete/merge category that is not yours!");
+        }
+
+        boolean isTargetValid=targetCategory.getUser()==null || targetCategory.getUser().getId().equals(userId);
+
+        if(!isTargetValid){
+            throw new RuntimeException("Invalid target category");
+        }
+
+        transactionRepository.updateCategoryForTransactions(sourceCategoryId, targetCategoryId, userId);
+        budgetRepository.updateCategoryForBudgets(sourceCategoryId, targetCategoryId, userId);
+        recurringPaymentsRepository.updateCategoryForRecurringPayments(sourceCategoryId, targetCategoryId, userId);
+
+        categoryRepository.delete(sourceCategory);
+    }
+
 
     @Transactional
-    public CategoryResponseDTO createCategory(CategoryRequestDTO categoryRequestDTO, Long userId) {
+    public CategoryResponseDTO searchCategories(CategoryRequestDTO categoryRequestDTO, Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -92,32 +130,32 @@ public class CategoryService {
         category.setName(categoryRequestDTO.name());
         category.setType(categoryRequestDTO.type());
 
-        Category savedCategory=categoryRepository.save(category);
+        Category savedCategory = categoryRepository.save(category);
 
         return categoryMapper.toDto(savedCategory);
     }
 
-        //Delete our custom category
-        @Transactional
-        public void deleteCategory (Long categoryId, Long userId){
-            Category category = categoryRepository.findById(categoryId)
-                    .orElseThrow(() -> new RuntimeException("Category not found"));
+    //Delete our custom category
+    @Transactional
+    public void deleteCategory(Long categoryId, Long userId) {
+        Category category = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new RuntimeException("Category not found"));
 
-            if (category.getUser() == null) {
-                throw new RuntimeException("Cannot delete system categories");
-            }
-
-            if (!category.getUser().getId().equals(userId)) {
-                throw new RuntimeException("You cannot delete this category.This category does not belong to you");
-            }
-            //Check if we have transactions with this category
-            boolean isUsed=transactionRepository.existsByCategoryId(categoryId);
-
-            if (isUsed){
-                throw new RuntimeException("Cannot delete category because it has related transactions. Please delete the transactions first.");
-            }
-            categoryRepository.delete(category);
-
+        if (category.getUser() == null) {
+            throw new RuntimeException("Cannot delete system categories");
         }
 
+        if (!category.getUser().getId().equals(userId)) {
+            throw new RuntimeException("You cannot delete this category.This category does not belong to you");
+        }
+        //Check if we have transactions with this category
+        boolean isUsed = transactionRepository.existsByCategoryId(categoryId);
+
+        if (isUsed) {
+            throw new RuntimeException("Cannot delete category because it has related transactions. Please delete the transactions first.");
+        }
+        categoryRepository.delete(category);
+
     }
+
+}
