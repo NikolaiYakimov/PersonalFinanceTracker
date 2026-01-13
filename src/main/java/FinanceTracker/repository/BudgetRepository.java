@@ -35,7 +35,7 @@ public interface BudgetRepository extends JpaRepository<Budget, Long> {
             "WHERE b.user.id = :userId " +
             "AND b.endDate < :now ORDER BY b.endDate DESC")
     List<Budget> findAllPastBudgets(@Param("userId") Long userId,
-                                    @Param("date") LocalDate date);
+                                    @Param("now") LocalDate date);
 
 
     @Query("SELECT COUNT(b) > 0 FROM Budget b " +
@@ -46,7 +46,7 @@ public interface BudgetRepository extends JpaRepository<Budget, Long> {
             "   (b.endDate BETWEEN :start AND :end) OR " +
             "   (:start BETWEEN b.startDate AND b.endDate)" +
             ")")
-    boolean existOverlappingBudget(Long userId, Long categoryId, LocalDate startDate, LocalDate endDate);
+    boolean existOverlappingBudget(@Param("userId")Long userId,@Param("categoryId") Long categoryId, @Param("start")LocalDate startDate, @Param("end")LocalDate endDate);
 
     @Query("SELECT COUNT(b) > 0 FROM Budget b " +
             "WHERE b.user.id = :userId " +
@@ -57,7 +57,7 @@ public interface BudgetRepository extends JpaRepository<Budget, Long> {
             "   (b.endDate BETWEEN :start AND :end) OR " +
             "   (:start BETWEEN b.startDate AND b.endDate)" +
             ")")
-    boolean existOverlappingBudgetExcludingCurrent(Long userId, Long categoryId, LocalDate startDate, LocalDate endDate, Long excludedBudgetId);
+    boolean existOverlappingBudgetExcludingCurrent(@Param("userId")Long userId,@Param("categoryId") Long categoryId,@Param("start") LocalDate startDate,@Param("end") LocalDate endDate,@Param("excludedBudgetId") Long excludedBudgetId);
 
 
     boolean existsByUserIdAndCategoryIdAndStartDate(Long userId, Long categoryId, LocalDate startDate);

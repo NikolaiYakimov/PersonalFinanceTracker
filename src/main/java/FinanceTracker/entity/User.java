@@ -3,6 +3,7 @@ package FinanceTracker.entity;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
@@ -17,7 +18,6 @@ import java.util.Set;
 @Entity
 @Table(name = "users")
 @Data
-
 @NoArgsConstructor
 @AllArgsConstructor
 public class User implements UserDetails {
@@ -53,10 +53,17 @@ public class User implements UserDetails {
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return roles.stream()
-                .map(role -> new SimpleGrantedAuthority(role.getName().name()))
+                .map(roleEntity -> new SimpleGrantedAuthority(roleEntity.getName().name()))
                 .toList();
     }
-
+    @Override
+    public String getUsername() {
+        return username;
+    }
+    @Override
+    public String getPassword() {
+        return password;
+    }
     @Override
     public boolean isAccountNonExpired() {
         return true;
