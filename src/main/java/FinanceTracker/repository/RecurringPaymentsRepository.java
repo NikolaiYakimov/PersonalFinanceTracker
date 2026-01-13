@@ -2,6 +2,7 @@ package FinanceTracker.repository;
 
 import FinanceTracker.entity.RecurringPayments;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -33,6 +34,9 @@ public interface RecurringPaymentsRepository extends JpaRepository<RecurringPaym
     //Check if the user have current active payment for given service
     boolean existsByUserIdAndDescriptionIgnoreCaseAndIsActiveTrue(Long userId,String description);
 
-
+    @Modifying
+    @Query("UPDATE RecurringPayments r SET r.category.id = :targetId " +
+            "WHERE r.category.id = :sourceId AND r.user.id = :userId")
+    void updateCategoryForRecurringPayments(@Param("sourceId") Long sourceId, @Param("targetId") Long targetId, @Param("userId") Long userId);
 
 }

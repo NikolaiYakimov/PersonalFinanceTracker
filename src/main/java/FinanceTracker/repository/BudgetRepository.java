@@ -3,6 +3,7 @@ package FinanceTracker.repository;
 import FinanceTracker.entity.Budget;
 import org.springframework.cglib.core.Local;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -30,15 +31,11 @@ public interface BudgetRepository extends JpaRepository<Budget, Long> {
     List<Budget> findAllActiveBudgets(@Param("userId") Long userId,
                                       @Param("date") LocalDate date);
 
-    @Query("SELECT b FROM Budget b "+
-            "WHERE b.user.id = :userId "+
+    @Query("SELECT b FROM Budget b " +
+            "WHERE b.user.id = :userId " +
             "AND b.endDate < :now ORDER BY b.endDate DESC")
     List<Budget> findAllPastBudgets(@Param("userId") Long userId,
                                     @Param("date") LocalDate date);
-
-
-
-
 
 
     @Query("SELECT COUNT(b) > 0 FROM Budget b " +
@@ -49,7 +46,7 @@ public interface BudgetRepository extends JpaRepository<Budget, Long> {
             "   (b.endDate BETWEEN :start AND :end) OR " +
             "   (:start BETWEEN b.startDate AND b.endDate)" +
             ")")
-    boolean existOverlappingBudget(Long userId,Long categoryId,LocalDate startDate,LocalDate endDate);
+    boolean existOverlappingBudget(Long userId, Long categoryId, LocalDate startDate, LocalDate endDate);
 
     @Query("SELECT COUNT(b) > 0 FROM Budget b " +
             "WHERE b.user.id = :userId " +
@@ -60,8 +57,13 @@ public interface BudgetRepository extends JpaRepository<Budget, Long> {
             "   (b.endDate BETWEEN :start AND :end) OR " +
             "   (:start BETWEEN b.startDate AND b.endDate)" +
             ")")
-    boolean existOverlappingBudgetExcludingCurrent(Long userId,Long categoryId,LocalDate startDate,LocalDate endDate,Long excludedBudgetId);
+    boolean existOverlappingBudgetExcludingCurrent(Long userId, Long categoryId, LocalDate startDate, LocalDate endDate, Long excludedBudgetId);
 
 
-    boolean existsByUserIdAndCategoryIdAndStartDate(Long userId,Long categoryId,LocalDate startDate);
+    boolean existsByUserIdAndCategoryIdAndStartDate(Long userId, Long categoryId, LocalDate startDate);
+
+    @Modifying
+    @Query("UPDATE Budget b SET b.category.id = :targetId " +
+            "WHERE b.category.id = :sourceId AND b.user.id = :userId")
+    void updateCategoryForBudgets(@Param("sourceId") Long sourceId, @Param("targetId") Long targetId, @Param("userId") Long userId);
 }
