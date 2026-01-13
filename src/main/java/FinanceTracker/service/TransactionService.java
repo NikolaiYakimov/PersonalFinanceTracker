@@ -97,7 +97,7 @@ public class TransactionService {
     }
 
     @Transactional
-    public void createTransaction(TransactionRequestDTO transactionDTO, Long userId) {
+    public TransactionResponseDTO createTransaction(TransactionRequestDTO transactionDTO, Long userId) {
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found"));
@@ -126,7 +126,9 @@ public class TransactionService {
         }
 
         Transaction transaction = transactionMapper.toEntity(transactionDTO, user, category, currency);
-        transactionRepository.save(transaction);
+       Transaction savedTransaction= transactionRepository.save(transaction);
+
+        return transactionMapper.toDto(savedTransaction);
     }
 
     public TransactionResponseDTO updateTransaction(Long transactionId, TransactionRequestDTO dto, Long userId) {

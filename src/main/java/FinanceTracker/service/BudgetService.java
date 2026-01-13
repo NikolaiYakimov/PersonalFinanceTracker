@@ -87,7 +87,7 @@ public class BudgetService {
 
 
     @Transactional
-    public void createBudget(BudgetRequestDTO budgetRequestDTO, Long userId) {
+    public BudgetResponseDTO createBudget(BudgetRequestDTO budgetRequestDTO, Long userId) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User is not found"));
 
@@ -101,8 +101,9 @@ public class BudgetService {
         }
 
         Budget budget = budgetMapper.toEntity(budgetRequestDTO, user, category);
-        budgetRepository.save(budget);
+        Budget savedBudget=budgetRepository.save(budget);
 
+        return budgetMapper.toDto(savedBudget,getSpentAmountForBudget(budget));
     }
 
     @Transactional
