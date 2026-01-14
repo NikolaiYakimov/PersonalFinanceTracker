@@ -14,6 +14,7 @@ import FinanceTracker.repository.CategoryRepository;
 import FinanceTracker.repository.CurrencyRepository;
 import FinanceTracker.repository.TransactionRepository;
 import FinanceTracker.repository.UserRepository;
+import FinanceTracker.security.UserHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -36,71 +37,77 @@ public class TransactionService {
     private final TransactionMapper transactionMapper;
     private final CurrencyRepository currencyRepository;
     private final BudgetService budgetService;
+    private final UserHelper userHelper;
 
 
-    public List<TransactionResponseDTO> getMyTransactions(Long userId) {
-
-        return transactionRepository.findByUserIdOrderByDateDesc(userId).stream()
+    public List<TransactionResponseDTO> getMyTransactions() {
+        User user=userHelper.getCurrentUser();
+        return transactionRepository.findByUserIdOrderByDateDesc(user.getId()).stream()
                 .map(transactionMapper::toDto)
                 .toList();
     }
 
     public Page<TransactionResponseDTO> getTransactionsPaged(Long userId, int page, int size) {
         Pageable pageable= PageRequest.of(page,size);
+        User user=userHelper.getCurrentUser();
 
-        return transactionRepository.findByUserIdOrderByDateDesc(userId,pageable).map(transactionMapper::toDto);
+        return transactionRepository.findByUserIdOrderByDateDesc(user.getId(),pageable).map(transactionMapper::toDto);
     }
 
-    public TransactionResponseDTO getTransactionById(Long transactionId, Long userId) {
+    public TransactionResponseDTO getTransactionById(Long transactionId) {
+        User user=userHelper.getCurrentUser();
         Transaction transaction = transactionRepository.findById(transactionId)
                 .orElseThrow(() -> new RuntimeException("Transaction not found"));
 
-        if (!transaction.getUser().getId().equals(userId)) {
+        if (!transaction.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("Unauthorized! This transaction is not yours");
         }
 
         return transactionMapper.toDto(transaction);
     }
 
-    public List<TransactionResponseDTO> getTransactionsByDateRange(Long userId, LocalDate startDate,LocalDate endDate){
+    public List<TransactionResponseDTO> getTransactionsByDateRange( LocalDate startDate,LocalDate endDate){
+        User user=userHelper.getCurrentUser();
         LocalDateTime start=startDate.atStartOfDay();
         LocalDateTime end=endDate.atTime(23,59,59);
 
-        return transactionRepository.findByUserIdAndDateBetweenOrderByDateDesc(userId,start,end)
+        return transactionRepository.findByUserIdAndDateBetweenOrderByDateDesc(user.getId(),start,end)
                 .stream()
                 .map(transactionMapper::toDto)
                 .toList();
     }
 
-    public List<TransactionResponseDTO> searchTransactions(String keyword, Long userId) {
-        return transactionRepository.findByUserIdAndDescriptionContainingIgnoreCase(userId, keyword)
-                .stream()
-                .map(transactionMapper::toDto)
-                .toList();
-
-    }
-
-    public List<TransactionResponseDTO> getTransactionByCategory(Long categoryId, Long userId) {
-        return transactionRepository.findByUserIdAndCategoryIdOrderByDateDesc(userId, categoryId)
+    public List<TransactionResponseDTO> searchTransactions(String keyword) {
+        User user=userHelper.getCurrentUser();
+        return transactionRepository.findByUserIdAndDescriptionContainingIgnoreCase(user.getId(), keyword)
                 .stream()
                 .map(transactionMapper::toDto)
                 .toList();
 
     }
 
-    public List<TransactionResponseDTO> getTransactionByType(String typeStr, Long userId) {
+    public List<TransactionResponseDTO> getTransactionByCategory(Long categoryId) {
+        User user=userHelper.getCurrentUser();
+        return transactionRepository.findByUserIdAndCategoryIdOrderByDateDesc(user.getId(), categoryId)
+                .stream()
+                .map(transactionMapper::toDto)
+                .toList();
+
+    }
+
+    public List<TransactionResponseDTO> getTransactionByType(String typeStr) {
+        User user=userHelper.getCurrentUser();
         TransactionType transactionType = TransactionType.valueOf(typeStr.toUpperCase());
-        return transactionRepository.findByUserIdAndCategory_Type(userId, transactionType)
+        return transactionRepository.findByUserIdAndCategory_Type(user.getId(), transactionType)
                 .stream()
                 .map(transactionMapper::toDto)
                 .toList();
     }
 
     @Transactional
-    public TransactionResponseDTO createTransaction(TransactionRequestDTO transactionDTO, Long userId) {
+    public TransactionResponseDTO createTransaction(TransactionRequestDTO transactionDTO) {
 
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        User user=userHelper.getCurrentUser();
 
         Category category = categoryRepository.findById(transactionDTO.categoryId())
                 .orElseThrow(() -> new RuntimeException("Category not found"));
@@ -116,7 +123,7 @@ public class TransactionService {
                 .orElseThrow(() -> new RuntimeException("Currency not found: " + code));
 
         boolean isLimitExceeded = budgetService.willTransactionExceedBudget(
-                userId,
+                user.getId(),
                 category.getId(),
                 transactionDTO.amount(),
                 transactionDTO.date().toLocalDate());
@@ -131,11 +138,12 @@ public class TransactionService {
         return transactionMapper.toDto(savedTransaction);
     }
 
-    public TransactionResponseDTO updateTransaction(Long transactionId, TransactionRequestDTO dto, Long userId) {
+    public TransactionResponseDTO updateTransaction(Long transactionId, TransactionRequestDTO dto) {
+        User user=userHelper.getCurrentUser();
         Transaction transaction = transactionRepository.findById(transactionId)
                 .orElseThrow(() -> new RuntimeException("Transaction not found"));
 
-        if ( !transaction.getUser().getId().equals(userId)) {
+        if ( !transaction.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("Cannot make transaction to categories that is not yours");
         }
 
@@ -143,7 +151,7 @@ public class TransactionService {
             Category newCategory = categoryRepository.findById(dto.categoryId())
                     .orElseThrow(() -> new RuntimeException("Category not found"));
 
-            if (newCategory.getUser() != null && !newCategory.getUser().getId().equals(userId)) {
+            if (newCategory.getUser() != null && !newCategory.getUser().getId().equals(user.getId())) {
                 throw new RuntimeException("Invalid Category");
             }
 
@@ -158,7 +166,7 @@ public class TransactionService {
         }
 
         boolean isLimitExceeded = budgetService.willTransactionExceedBudget(
-                userId,
+                user.getId(),
                 transaction.getCategory().getId(),
                 dto.amount(),
                 transaction.getDate().toLocalDate()
@@ -176,11 +184,12 @@ public class TransactionService {
     }
 
     @Transactional
-    public void deleteTransaction(Long transactionId, Long userId) {
+    public void deleteTransaction(Long transactionId) {
+        User user=userHelper.getCurrentUser();
         Transaction transaction = transactionRepository.findById(transactionId)
                 .orElseThrow(() -> new RuntimeException("Transaction not found"));
 
-        if (!transaction.getUser().getId().equals(userId)) {
+        if (!transaction.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("Cannot delete transaction that is not yours");
         }
 
@@ -188,9 +197,10 @@ public class TransactionService {
     }
 
     //Can move to different service if i get more method about statistic like that
-    public DashboardStatsDTO getDashboardStats(Long userId) {
-        BigDecimal totalIncome = transactionRepository.sumTotalAmountByType(userId, TransactionType.INCOME);
-        BigDecimal totalExpenses = transactionRepository.sumTotalAmountByType(userId, TransactionType.EXPENSE);
+    public DashboardStatsDTO getDashboardStats() {
+        User user=userHelper.getCurrentUser();
+        BigDecimal totalIncome = transactionRepository.sumTotalAmountByType(user.getId(), TransactionType.INCOME);
+        BigDecimal totalExpenses = transactionRepository.sumTotalAmountByType(user.getId(), TransactionType.EXPENSE);
 
         totalIncome = (totalIncome != null) ? totalIncome : BigDecimal.ZERO;
 
@@ -202,7 +212,8 @@ public class TransactionService {
 
     }
 
-    public List<CategorySumDTO> getSpendingByCategory(Long userId) {
-        return transactionRepository.findGroupByCategory(userId, TransactionType.EXPENSE);
+    public List<CategorySumDTO> getSpendingByCategory() {
+        User user=userHelper.getCurrentUser();
+        return transactionRepository.findGroupByCategory(user.getId(), TransactionType.EXPENSE);
     }
 }
