@@ -47,7 +47,7 @@ public class AdminService {
         userRepository.deleteById(userId);
     }
 
-    public void changeUserRole(Long userId,Role newRole)
+    public UserResponseDTO changeUserRole(Long userId,Role newRole)
     {
         User user=userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("User not found!"));
@@ -57,7 +57,9 @@ public class AdminService {
 
         user.getRoles().clear();
         user.getRoles().add(roleEntity);
-        userRepository.save(user);
+        User savedUser=userRepository.save(user);
+
+        return userMapper.toUserResponse(savedUser);
 
     }
 }

@@ -24,9 +24,11 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
 
-    public UserResponseDTO getUserById(Long userId) {
-        User user = userRepository.findById(userId)
+    public UserResponseDTO getMyProfile() {
+        String username = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
         return userMapper.toUserResponse(user);
     }
 

@@ -175,7 +175,7 @@ public class RecurringPaymentService {
                 payment.getCurrency().getCode()
         );
 
-        transactionService.createTransaction(transactionRequestDTO,payment.getUser().getId());
+        transactionService.createTransaction(transactionRequestDTO);
 
         payment.setNextRunDate(updateNextDate(payment.getNextRunDate(),payment.getFrequency()));
         recurringPaymentsRepository.save(payment);
