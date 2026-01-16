@@ -28,7 +28,7 @@ public class AuthService {
     private final JwtService jwtService;
 
     @Transactional
-    private AuthResponseDTO register(RegisterRequest request)
+    public AuthResponseDTO register(RegisterRequest request)
     {
         if(userRepository.existsByEmail(request.email()))
         {

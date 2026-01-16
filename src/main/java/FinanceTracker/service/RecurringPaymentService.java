@@ -9,18 +9,19 @@ import FinanceTracker.entity.RecurringPayments;
 import FinanceTracker.entity.User;
 import FinanceTracker.enums.Frequency;
 import FinanceTracker.mapper.RecurringPaymentMapper;
-import FinanceTracker.repository.*;
+import FinanceTracker.repository.CategoryRepository;
+import FinanceTracker.repository.CurrencyRepository;
+import FinanceTracker.repository.RecurringPaymentsRepository;
+import FinanceTracker.repository.UserRepository;
+import FinanceTracker.security.UserHelper;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cglib.core.Local;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -32,50 +33,50 @@ public class RecurringPaymentService {
     private final CategoryRepository categoryRepository;
     private final CurrencyRepository currencyRepository;
     private final RecurringPaymentMapper recurringPaymentMapper;
+    private final UserHelper userHelper;
 
     private final TransactionService transactionService;
 
-    public List<RecurringPaymentResponseDTO> getMyRecurringPayments(Long userId){
-        return recurringPaymentsRepository.findByUserIdAndIsActiveTrue(userId)
+    public List<RecurringPaymentResponseDTO> getMyRecurringPayments() {
+        User user = userHelper.getCurrentUser();
+        return recurringPaymentsRepository.findByUserIdAndIsActiveTrue(user.getId())
                 .stream()
                 .map(recurringPaymentMapper::toDto)
                 .toList();
     }
 
     @Transactional
-    public RecurringPaymentResponseDTO createPayment(RecurringPaymentRequestDTO dto,Long userId){
-        User user=userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+    public RecurringPaymentResponseDTO createPayment(RecurringPaymentRequestDTO dto) {
+        User user = userHelper.getCurrentUser();
 
-        Category category=categoryRepository.findById(dto.categoryId())
-                .orElseThrow(()->new RuntimeException("Category not found"));
+        Category category = categoryRepository.findById(dto.categoryId())
+                .orElseThrow(() -> new RuntimeException("Category not found"));
 
-        String code=(dto.currencyCode()!=null) ? dto.currencyCode():"EUR";
-        Currency currency=currencyRepository.findByCode(code)
+        String code = (dto.currencyCode() != null) ? dto.currencyCode() : "EUR";
+        Currency currency = currencyRepository.findByCode(code)
                 .orElseThrow(() -> new RuntimeException("Currency not found"));
 
-        if (recurringPaymentsRepository.existsByUserIdAndDescriptionIgnoreCaseAndIsActiveTrue(userId,dto.description()))
-        {
+        if (recurringPaymentsRepository.existsByUserIdAndDescriptionIgnoreCaseAndIsActiveTrue(user.getId(), dto.description())) {
             throw new RuntimeException("Cannot have 2 recurring payments for same thing");
         }
-        RecurringPayments recurringPayment=recurringPaymentMapper.toEntity(dto,user,category,currency);
+        RecurringPayments recurringPayment = recurringPaymentMapper.toEntity(dto, user, category, currency);
 
         recurringPayment.setActive(true);
-        if(recurringPayment.getNextRunDate()==null)
-        {
+        if (recurringPayment.getNextRunDate() == null) {
             recurringPayment.setNextRunDate(dto.startDate());
         }
 
-        RecurringPayments savedRecurringPayment= recurringPaymentsRepository.save(recurringPayment);
+        RecurringPayments savedRecurringPayment = recurringPaymentsRepository.save(recurringPayment);
         return recurringPaymentMapper.toDto(savedRecurringPayment);
     }
-    @Transactional
-    public RecurringPaymentResponseDTO updatePayment(Long id,RecurringPaymentRequestDTO dto,Long userId){
 
-        RecurringPayments recurringPayment=recurringPaymentsRepository.findById(id)
+    @Transactional
+    public RecurringPaymentResponseDTO updatePayment(Long id, RecurringPaymentRequestDTO dto) {
+        User user = userHelper.getCurrentUser();
+        RecurringPayments recurringPayment = recurringPaymentsRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Payment not found"));
 
-        if(!recurringPayment.getUser().getId().equals(userId)){
+        if (!recurringPayment.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("Unauthorized! You cannot update payment that is not yours!");
         }
 
@@ -83,21 +84,22 @@ public class RecurringPaymentService {
         recurringPayment.setDescription(dto.description());
         recurringPayment.setFrequency(dto.frequency());
 
-        if (!recurringPayment.getStartDate().isEqual(dto.startDate())){
+        if (!recurringPayment.getStartDate().isEqual(dto.startDate())) {
             recurringPayment.setStartDate(dto.startDate());
             recurringPayment.setNextRunDate(dto.startDate());
         }
 
-        RecurringPayments savedRecurringPayment=recurringPaymentsRepository.save(recurringPayment);
+        RecurringPayments savedRecurringPayment = recurringPaymentsRepository.save(recurringPayment);
         return recurringPaymentMapper.toDto(savedRecurringPayment);
 
     }
 
-    public void toggleActiveStatus(Long id,Long userId){
-        RecurringPayments recurringPayments=recurringPaymentsRepository.findById(id)
+    public void toggleActiveStatus(Long id) {
+        User user = userHelper.getCurrentUser();
+        RecurringPayments recurringPayments = recurringPaymentsRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Payment not found"));
 
-        if(!recurringPayments.getUser().getId().equals(userId)){
+        if (!recurringPayments.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("Unauthorized! Cannot changed status of payment of payment that is not yours!");
         }
 
@@ -106,27 +108,28 @@ public class RecurringPaymentService {
     }
 
     @Transactional
-    public void skipNextPayment(Long id,Long userId){
-        RecurringPayments recurringPayment=recurringPaymentsRepository.findById(id)
+    public void skipNextPayment(Long id) {
+        User user = userHelper.getCurrentUser();
+        RecurringPayments recurringPayment = recurringPaymentsRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Payment not found"));
 
-        if (!recurringPayment.getUser().getId().equals(userId))
-        {
+        if (!recurringPayment.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("Unauthorized");
         }
 
-        LocalDateTime currentNextPaymentDate=recurringPayment.getNextRunDate();
-        LocalDateTime newNextPaymentDate=updateNextDate(currentNextPaymentDate,recurringPayment.getFrequency());
+        LocalDateTime currentNextPaymentDate = recurringPayment.getNextRunDate();
+        LocalDateTime newNextPaymentDate = updateNextDate(currentNextPaymentDate, recurringPayment.getFrequency());
 
         recurringPayment.setNextRunDate(newNextPaymentDate);
         recurringPaymentsRepository.save(recurringPayment);
     }
 
-    public List<RecurringPaymentResponseDTO> getUpcomingPayments(Long userId,int days){
-        LocalDateTime now=LocalDateTime.now();
-        LocalDateTime end=now.plusDays(days);
+    public List<RecurringPaymentResponseDTO> getUpcomingPayments(int days) {
+        User user = userHelper.getCurrentUser();
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime end = now.plusDays(days);
 
-        return recurringPaymentsRepository.findUpcomingPayments(userId,now,end)
+        return recurringPaymentsRepository.findUpcomingPayments(user.getId(), now, end)
                 .stream()
                 .map(recurringPaymentMapper::toDto)
                 .toList()
@@ -135,26 +138,25 @@ public class RecurringPaymentService {
 
 
     @Transactional
-    public void delete(Long id,Long userId){
-        RecurringPayments recurringPayments=recurringPaymentsRepository.findById(id)
-                .orElseThrow(()->new RuntimeException("Recurring payment not found!"));
+    public void deletePayment(Long id) {
+        User user = userHelper.getCurrentUser();
+        RecurringPayments recurringPayments = recurringPaymentsRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Recurring payment not found!"));
 
-        if(!recurringPayments.getUser().getId().equals(userId))
-        {
+        if (!recurringPayments.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("You cannot delete recurring payment that is not yours!");
         }
         recurringPaymentsRepository.delete(recurringPayments);
     }
 
-    @Scheduled (cron = "0 0 8 * * ?")
-    public void processDuePayments(){
-        LocalDateTime now=LocalDateTime.now();
+    @Scheduled(cron = "0 0 8 * * ?")
+    public void processDuePayments() {
+        LocalDateTime now = LocalDateTime.now();
         log.info("Starting recurring payments check for date: {}", now);
 
-        List<RecurringPayments> duePayments=recurringPaymentsRepository.findDuePayments(now);
+        List<RecurringPayments> duePayments = recurringPaymentsRepository.findDuePayments(now);
 
-        for (RecurringPayments payment: duePayments)
-        {
+        for (RecurringPayments payment : duePayments) {
             try {
                 processSinglePayment(payment);
             } catch (Exception e) {
@@ -165,9 +167,9 @@ public class RecurringPaymentService {
         }
     }
 
-
-    public void processSinglePayment(RecurringPayments payment){
-        TransactionRequestDTO transactionRequestDTO=new TransactionRequestDTO(
+    //TODO: Need to think about this with the UserHelper method, maybe will throw exception
+    public void processSinglePayment(RecurringPayments payment) {
+        TransactionRequestDTO transactionRequestDTO = new TransactionRequestDTO(
                 payment.getAmount(),
                 "Auto: " + payment.getDescription(),
                 LocalDateTime.now(),
@@ -177,17 +179,17 @@ public class RecurringPaymentService {
 
         transactionService.createTransaction(transactionRequestDTO);
 
-        payment.setNextRunDate(updateNextDate(payment.getNextRunDate(),payment.getFrequency()));
+        payment.setNextRunDate(updateNextDate(payment.getNextRunDate(), payment.getFrequency()));
         recurringPaymentsRepository.save(payment);
 
         log.info("Processed payment ID: {}", payment.getId());
 
     }
 
-    private LocalDateTime updateNextDate(LocalDateTime current, Frequency frequency){
+    private LocalDateTime updateNextDate(LocalDateTime current, Frequency frequency) {
 
 
-        return switch (frequency){
+        return switch (frequency) {
             case DAILY -> current.plusDays(1);
             case WEEKLY -> current.plusWeeks(1);
             case MONTHLY -> current.plusMonths(1);

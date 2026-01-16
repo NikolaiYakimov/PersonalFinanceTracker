@@ -10,6 +10,7 @@ import FinanceTracker.repository.BudgetRepository;
 import FinanceTracker.repository.CategoryRepository;
 import FinanceTracker.repository.TransactionRepository;
 import FinanceTracker.repository.UserRepository;
+import FinanceTracker.security.UserHelper;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,8 +19,6 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
-
-import static java.util.stream.Collectors.toList;
 
 @Service
 @RequiredArgsConstructor
@@ -30,28 +29,33 @@ public class BudgetService {
     private final CategoryRepository categoryRepository;
     private final BudgetRepository budgetRepository;
     private final BudgetMapper budgetMapper;
+    private final UserHelper userHelper;
 
     //Get active budgets
-    public List<BudgetResponseDTO> getMyActiveBudgets(Long userId) {
+    public List<BudgetResponseDTO> getMyActiveBudgets() {
+        User user = userHelper.getCurrentUser();
         LocalDate now = LocalDate.now();
-        List<Budget> budgets = budgetRepository.findAllActiveBudgets(userId, now);
+        List<Budget> budgets = budgetRepository.findAllActiveBudgets(user.getId(), now);
 
         return budgets.stream()
                 .map(this::mapToDtoWithSpentAmount)
                 .toList();
     }
 
-    public List<BudgetResponseDTO> getMyBudgetHistory(Long userId) {
+    public List<BudgetResponseDTO> getMyBudgetHistory() {
+
+        User user = userHelper.getCurrentUser();
         LocalDate now = LocalDate.now();
-        List<Budget> budgets = budgetRepository.findAllPastBudgets(userId, now);
+        List<Budget> budgets = budgetRepository.findAllPastBudgets(user.getId(), now);
 
         return budgets.stream()
                 .map(this::mapToDtoWithSpentAmount)
                 .toList();
     }
 
-    public List<BudgetResponseDTO> getPastAndActiveBudgets(Long userId) {
-        List<Budget> budgets=budgetRepository.findByUserId(userId);
+    public List<BudgetResponseDTO> getPastAndActiveBudgets() {
+        User user = userHelper.getCurrentUser();
+        List<Budget> budgets = budgetRepository.findByUserId(user.getId());
 
         return budgets.stream()
                 .map(this::mapToDtoWithSpentAmount)
@@ -59,11 +63,12 @@ public class BudgetService {
     }
 
 
-    public BudgetResponseDTO getBudgetById(Long budgetId, Long userId) {
+    public BudgetResponseDTO getBudgetById(Long budgetId) {
+        User user = userHelper.getCurrentUser();
         Budget budget = budgetRepository.findById(budgetId)
                 .orElseThrow(() -> new RuntimeException("Budget Not Found"));
 
-        if (!budget.getUser().getId().equals(userId)) {
+        if (!budget.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("Unauthorized! This budget is not yours");
         }
         return mapToDtoWithSpentAmount(budget);
@@ -71,6 +76,7 @@ public class BudgetService {
 
 
     public boolean willTransactionExceedBudget(Long userId, Long categoryId, BigDecimal transactionAmount, LocalDate transactionDate) {
+
         var budgetOptional = budgetRepository.findActiveBudgetByCategory(userId, categoryId, transactionDate);
 
         if (budgetOptional.isEmpty()) {
@@ -87,31 +93,32 @@ public class BudgetService {
 
 
     @Transactional
-    public BudgetResponseDTO createBudget(BudgetRequestDTO budgetRequestDTO, Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User is not found"));
+    public BudgetResponseDTO createBudget(BudgetRequestDTO budgetRequestDTO) {
+        User user = userHelper.getCurrentUser();
+
 
         Category category = categoryRepository.findById(budgetRequestDTO.categoryId())
                 .orElseThrow(() -> new RuntimeException("Category not found"));
 
-        boolean hasOverlap = budgetRepository.existOverlappingBudget(userId, budgetRequestDTO.categoryId(), budgetRequestDTO.startDate(), budgetRequestDTO.endDate());
+        boolean hasOverlap = budgetRepository.existOverlappingBudget(user.getId(), budgetRequestDTO.categoryId(), budgetRequestDTO.startDate(), budgetRequestDTO.endDate());
 
         if (hasOverlap) {
             throw new RuntimeException("Budget already exists for this category on this date!");
         }
 
         Budget budget = budgetMapper.toEntity(budgetRequestDTO, user, category);
-        Budget savedBudget=budgetRepository.save(budget);
+        Budget savedBudget = budgetRepository.save(budget);
 
-        return budgetMapper.toDto(savedBudget,getSpentAmountForBudget(budget));
+        return budgetMapper.toDto(savedBudget, getSpentAmountForBudget(budget));
     }
 
     @Transactional
-    public BudgetResponseDTO updateBudget(Long id, BudgetRequestDTO budgetRequestDTO, Long userId) {
+    public BudgetResponseDTO updateBudget(Long id, BudgetRequestDTO budgetRequestDTO) {
+        User user = userHelper.getCurrentUser();
         Budget budget = budgetRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Budget is not found"));
 
-        if (!budget.getUser().getId().equals(userId)) {
+        if (!budget.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("Unauthorized! This budget is not yours");
         }
 
@@ -120,7 +127,7 @@ public class BudgetService {
                 !budget.getEndDate().equals(budgetRequestDTO.endDate());
 
         if (isCategoryChanged || areDateChanged) {
-            boolean overlap = budgetRepository.existOverlappingBudgetExcludingCurrent(userId,
+            boolean overlap = budgetRepository.existOverlappingBudgetExcludingCurrent(user.getId(),
                     budgetRequestDTO.categoryId(),
                     budgetRequestDTO.startDate(),
                     budgetRequestDTO.endDate(),
@@ -147,15 +154,17 @@ public class BudgetService {
     }
 
     @Transactional
-    public void deleteBudget(Long id, Long userId) {
+    public void deleteBudget(Long id) {
+        User user = userHelper.getCurrentUser();
         Budget budget = budgetRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Budget is not found"));
 
-        if (!budget.getUser().getId().equals(userId))
+        if (!budget.getUser().getId().equals(user.getId()))
             throw new RuntimeException("Unauthorized! This budget is not yours");
 
         budgetRepository.delete(budget);
     }
+
     private BudgetResponseDTO mapToDtoWithSpentAmount(Budget budget) {
         BigDecimal spent = getSpentAmountForBudget(budget);
         return budgetMapper.toDto(budget, spent);

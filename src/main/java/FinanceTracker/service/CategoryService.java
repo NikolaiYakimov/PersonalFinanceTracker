@@ -7,6 +7,7 @@ import FinanceTracker.entity.User;
 import FinanceTracker.enums.TransactionType;
 import FinanceTracker.mapper.CategoryMapper;
 import FinanceTracker.repository.*;
+import FinanceTracker.security.UserHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,10 +23,12 @@ public class CategoryService {
     private final TransactionRepository transactionRepository;
     private final BudgetRepository budgetRepository;
     private final RecurringPaymentsRepository recurringPaymentsRepository;
+    private final UserHelper userHelper;
 
     //Get All categories for the user
-    public List<CategoryResponseDTO> getAllCategories(Long userId) {
-        List<Category> categories = categoryRepository.findAllBaseAndUserCategories(userId);
+    public List<CategoryResponseDTO> getAllCategories() {
+        User user=userHelper.getCurrentUser();
+        List<Category> categories = categoryRepository.findAllBaseAndUserCategories(user.getId());
 
         return categories.stream()
                 .map(categoryMapper::toDto)
@@ -33,20 +36,25 @@ public class CategoryService {
     }
 
     //Get categories by type of expenses
-    public List<CategoryResponseDTO> getCategoriesByType(Long userId, TransactionType type) {
-        List<Category> categories = categoryRepository.findAllBaseAndUserCategoriesByType(userId, type);
+    public List<CategoryResponseDTO> getCategoriesByType( TransactionType type) {
+
+        User user=userHelper.getCurrentUser();
+
+        List<Category> categories = categoryRepository.findAllBaseAndUserCategoriesByType(user.getId(), type);
 
         return categories.stream()
                 .map(categoryMapper::toDto)
                 .toList();
     }
 
-    public CategoryResponseDTO getCategoryById(Long categoryId, Long userId) {
+    public CategoryResponseDTO getCategoryById(Long categoryId) {
+        User user=userHelper.getCurrentUser();
+
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new RuntimeException("Category not found"));
 
         boolean isSystem = category.getUser() == null;
-        boolean isMine = category.getUser() != null && category.getUser().getId().equals(userId);
+        boolean isMine = category.getUser() != null && category.getUser().getId().equals(user.getId());
 
         if (!isSystem && !isMine) {
             throw new RuntimeException("Unauthorized! This category is not yours!");
@@ -55,8 +63,10 @@ public class CategoryService {
         return categoryMapper.toDto(category);
     }
 
-    public List<CategoryResponseDTO> searchCategories(Long userId, String keyword) {
-        return categoryRepository.searchByName(keyword, userId)
+    public List<CategoryResponseDTO> searchCategories( String keyword) {
+        User user=userHelper.getCurrentUser();
+
+        return categoryRepository.searchByName(keyword, user.getId())
                 .stream()
                 .map(categoryMapper::toDto)
                 .toList();
@@ -64,7 +74,8 @@ public class CategoryService {
 
 
     //Merge Categories(Transfer all transaction from category A in category B and delete category A)
-    public void mergeCategory(Long sourceCategoryId,Long targetCategoryId,Long userId) {
+    public void mergeCategory(Long sourceCategoryId,Long targetCategoryId) {
+        User user=userHelper.getCurrentUser();
 
         Category sourceCategory=categoryRepository.findById(sourceCategoryId)
                 .orElseThrow(() -> new RuntimeException("Source category not found"));
@@ -76,30 +87,30 @@ public class CategoryService {
             throw new RuntimeException("Cannot delete/merge system category");
         }
 
-        if (!sourceCategory.getUser().getId().equals(userId)) {
+        if (!sourceCategory.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("Unauthorized!Cannot delete/merge category that is not yours!");
         }
 
-        boolean isTargetValid=targetCategory.getUser()==null || targetCategory.getUser().getId().equals(userId);
+        boolean isTargetValid=targetCategory.getUser()==null || targetCategory.getUser().getId().equals(user.getId());
 
         if(!isTargetValid){
             throw new RuntimeException("Invalid target category");
         }
 
-        transactionRepository.updateCategoryForTransactions(sourceCategoryId, targetCategoryId, userId);
-        budgetRepository.updateCategoryForBudgets(sourceCategoryId, targetCategoryId, userId);
-        recurringPaymentsRepository.updateCategoryForRecurringPayments(sourceCategoryId, targetCategoryId, userId);
+        transactionRepository.updateCategoryForTransactions(sourceCategoryId, targetCategoryId, user.getId());
+        budgetRepository.updateCategoryForBudgets(sourceCategoryId, targetCategoryId, user.getId());
+        recurringPaymentsRepository.updateCategoryForRecurringPayments(sourceCategoryId, targetCategoryId, user.getId());
 
         categoryRepository.delete(sourceCategory);
     }
 
 
     @Transactional
-    public CategoryResponseDTO searchCategories(CategoryRequestDTO categoryRequestDTO, Long userId) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+    public CategoryResponseDTO createCategory(CategoryRequestDTO categoryRequestDTO) {
+        User user=userHelper.getCurrentUser();
 
-        if (categoryRepository.existsByNameAndUserId(categoryRequestDTO.name(), userId)) {
+
+        if (categoryRepository.existsByNameAndUserId(categoryRequestDTO.name(), user.getId())) {
             throw new RuntimeException("Category with these name already exists for you");
         }
 
@@ -111,7 +122,9 @@ public class CategoryService {
         return categoryMapper.toDto(savedCategory);
     }
 
-    public CategoryResponseDTO updateCategory(Long categoryId, CategoryRequestDTO categoryRequestDTO, Long userId) {
+    public CategoryResponseDTO updateCategory(Long categoryId, CategoryRequestDTO categoryRequestDTO) {
+        User user=userHelper.getCurrentUser();
+
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new RuntimeException("Category not found"));
 
@@ -119,11 +132,11 @@ public class CategoryService {
             throw new RuntimeException("Cannot edit system categories");
         }
 
-        if (!category.getUser().getId().equals(userId)) {
+        if (!category.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("Unauthorized! You cannot update categories that is not yours!w");
         }
 
-        if (categoryRepository.existsByNameAndUserIdExcludingCurrent(categoryRequestDTO.name(), userId, categoryId)) {
+        if (categoryRepository.existsByNameAndUserIdExcludingCurrent(categoryRequestDTO.name(), user.getId(), categoryId)) {
             throw new RuntimeException("Another category with this name already exists");
         }
 
@@ -137,7 +150,9 @@ public class CategoryService {
 
     //Delete our custom category
     @Transactional
-    public void deleteCategory(Long categoryId, Long userId) {
+    public void deleteCategory(Long categoryId) {
+        User user=userHelper.getCurrentUser();
+
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new RuntimeException("Category not found"));
 
@@ -145,7 +160,7 @@ public class CategoryService {
             throw new RuntimeException("Cannot delete system categories");
         }
 
-        if (!category.getUser().getId().equals(userId)) {
+        if (!category.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("You cannot delete this category.This category does not belong to you");
         }
         //Check if we have transactions with this category

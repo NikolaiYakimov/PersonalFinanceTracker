@@ -23,6 +23,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.security.PublicKey;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -47,7 +48,7 @@ public class TransactionService {
                 .toList();
     }
 
-    public Page<TransactionResponseDTO> getTransactionsPaged(Long userId, int page, int size) {
+    public Page<TransactionResponseDTO> getTransactionsPaged( int page, int size) {
         Pageable pageable= PageRequest.of(page,size);
         User user=userHelper.getCurrentUser();
 
@@ -95,10 +96,9 @@ public class TransactionService {
 
     }
 
-    public List<TransactionResponseDTO> getTransactionByType(String typeStr) {
+    public List<TransactionResponseDTO> getTransactionByType(TransactionType type) {
         User user=userHelper.getCurrentUser();
-        TransactionType transactionType = TransactionType.valueOf(typeStr.toUpperCase());
-        return transactionRepository.findByUserIdAndCategory_Type(user.getId(), transactionType)
+        return transactionRepository.findByUserIdAndCategory_Type(user.getId(), type)
                 .stream()
                 .map(transactionMapper::toDto)
                 .toList();
@@ -216,4 +216,21 @@ public class TransactionService {
         User user=userHelper.getCurrentUser();
         return transactionRepository.findGroupByCategory(user.getId(), TransactionType.EXPENSE);
     }
+
+    public BigDecimal getTotalAmountByTypeAndDate(TransactionType type,LocalDate startDate,LocalDate endDate){
+        User user=userHelper.getCurrentUser();
+
+        LocalDateTime start=startDate.atStartOfDay();
+        LocalDateTime end=endDate.atTime(23,59,59);
+
+        BigDecimal total=transactionRepository.sumTotalAmountByTypeAndDate(user.getId(),type,start,end);
+        return (total!=null)? total:BigDecimal.ZERO;
+    }
+
+    public BigDecimal getTotalByCategoryId(Long categoryId){
+        User user=userHelper.getCurrentUser();
+        BigDecimal total=transactionRepository.sumTotalByCategoryId(user.getId(),categoryId);
+        return (total!=null) ? total:BigDecimal.ZERO;
+    }
+
 }
