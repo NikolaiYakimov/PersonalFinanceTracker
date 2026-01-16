@@ -73,7 +73,9 @@ public class CategoryService {
     }
 
 
+
     //Merge Categories(Transfer all transaction from category A in category B and delete category A)
+    @Transactional
     public void mergeCategory(Long sourceCategoryId,Long targetCategoryId) {
         User user=userHelper.getCurrentUser();
 

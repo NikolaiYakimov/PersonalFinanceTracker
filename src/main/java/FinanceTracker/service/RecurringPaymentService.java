@@ -160,8 +160,6 @@ public class RecurringPaymentService {
             try {
                 processSinglePayment(payment);
             } catch (Exception e) {
-                // If payment of someone make error,we don't want to stop others , that's why we put Try-Catch is in the loop,!
-                // Ако плащането на Иван гръмне, не искаме да спрем плащането на Мария.
                 log.error("Failed to process payment ID: " + payment.getId(), e);
             }
         }
@@ -177,7 +175,7 @@ public class RecurringPaymentService {
                 payment.getCurrency().getCode()
         );
 
-        transactionService.createTransaction(transactionRequestDTO);
+        transactionService.createScheduledTransaction(transactionRequestDTO,payment.getUser());
 
         payment.setNextRunDate(updateNextDate(payment.getNextRunDate(), payment.getFrequency()));
         recurringPaymentsRepository.save(payment);

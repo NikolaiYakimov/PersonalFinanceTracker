@@ -21,7 +21,7 @@ public record TransactionRequestDTO(
         @NotNull(message = "Category ID is required")
         Long categoryId,
 
-        @NotNull(message = "Currency code is required")
+//        @NotNull(message = "Currency code is required")
         String currencyCode
 ) {
 }

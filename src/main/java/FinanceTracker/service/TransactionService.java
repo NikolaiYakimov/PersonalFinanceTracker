@@ -138,6 +138,19 @@ public class TransactionService {
         return transactionMapper.toDto(savedTransaction);
     }
 
+    @Transactional
+     public void createScheduledTransaction(TransactionRequestDTO transactionDTO,User user) {
+        Category category=categoryRepository.findById(transactionDTO.categoryId())
+                .orElseThrow(() -> new RuntimeException("Category not found"));
+
+        String code=(transactionDTO.currencyCode() != null) ? transactionDTO.currencyCode() : "EUR";
+        Currency currency=currencyRepository.findByCode(code)
+                .orElseThrow(() -> new RuntimeException("Currency not found: " + code));
+
+        Transaction transaction = transactionMapper.toEntity(transactionDTO, user, category, currency);
+        transactionRepository.save(transaction);
+     }
+
     public TransactionResponseDTO updateTransaction(Long transactionId, TransactionRequestDTO dto) {
         User user=userHelper.getCurrentUser();
         Transaction transaction = transactionRepository.findById(transactionId)
