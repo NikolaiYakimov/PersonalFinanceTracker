@@ -34,9 +34,9 @@ public class BudgetController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<BudgetResponseDTO> getBudgetById(@PathVariable Long budgetId)
+    public ResponseEntity<BudgetResponseDTO> getBudgetById(@PathVariable Long id)
     {
-        return ResponseEntity.ok(budgetService.getBudgetById(budgetId));
+        return ResponseEntity.ok(budgetService.getBudgetById(id));
     }
 
     @PostMapping
@@ -46,16 +46,16 @@ public class BudgetController {
 
     @PutMapping("/{id}")
     public ResponseEntity<BudgetResponseDTO> updateBudget(
-            @PathVariable Long budgetId,
+            @PathVariable Long id,
             @RequestBody BudgetRequestDTO dto
     ){
-        return ResponseEntity.ok(budgetService.updateBudget(budgetId,dto));
+        return ResponseEntity.ok(budgetService.updateBudget(id,dto));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteBudget(@PathVariable Long budgetId)
+    public ResponseEntity<Void> deleteBudget(@PathVariable Long id)
     {
-        budgetService.deleteBudget(budgetId);
+        budgetService.deleteBudget(id);
         return ResponseEntity.noContent().build();
     }
 }

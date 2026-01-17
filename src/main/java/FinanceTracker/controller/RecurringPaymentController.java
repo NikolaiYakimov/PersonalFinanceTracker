@@ -40,20 +40,20 @@ public class RecurringPaymentController {
 
     @PutMapping("/{id}")
     public ResponseEntity<RecurringPaymentResponseDTO> updatePayment(
-            @PathVariable Long recurringPaymentId,
+            @PathVariable Long id,
             @RequestBody @Valid RecurringPaymentRequestDTO dto
     ){
-        return ResponseEntity.ok(recurringPaymentService.updatePayment(recurringPaymentId,dto));
+        return ResponseEntity.ok(recurringPaymentService.updatePayment(id,dto));
     }
 
     @PatchMapping("/{id}/toggle")
-    public ResponseEntity<Void> toggleActiveStatus(@PathVariable Long recurringPaymentId){
-        recurringPaymentService.toggleActiveStatus(recurringPaymentId);
+    public ResponseEntity<Void> toggleActiveStatus(@PathVariable Long id){
+        recurringPaymentService.toggleActiveStatus(id);
         return ResponseEntity.ok().build();
     }
     @PostMapping("/{id}/skip")
-    public ResponseEntity<Void> skipNextPayment(@PathVariable Long recurringPaymentId){
-        recurringPaymentService.skipNextPayment(recurringPaymentId);
+    public ResponseEntity<Void> skipNextPayment(@PathVariable Long id){
+        recurringPaymentService.skipNextPayment(id);
         return ResponseEntity.ok().build();
 
     }
