@@ -41,6 +41,18 @@ public class TransactionService {
     private final UserHelper userHelper;
 
 
+    public List<TransactionResponseDTO> getTransactions(LocalDate startDate,LocalDate endDate){
+
+        if(startDate != null && endDate != null){
+            return getTransactionsByDateRange(startDate,endDate);
+        }
+
+        if((startDate==null)!= (endDate==null)){
+            throw new IllegalArgumentException("startDate and endDate must not be provided together");
+        }
+        return getMyTransactions();
+    }
+
     public List<TransactionResponseDTO> getMyTransactions() {
         User user=userHelper.getCurrentUser();
         return transactionRepository.findByUserIdOrderByDateDesc(user.getId()).stream()
