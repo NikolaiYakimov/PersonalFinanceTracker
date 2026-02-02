@@ -13,6 +13,7 @@ import FinanceTracker.security.JwtService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,18 +33,18 @@ public class AuthService {
     {
         if(userRepository.existsByEmail(request.email()))
         {
-            throw new RuntimeException("Email Already Exists");
+            throw new IllegalStateException("Email Already Exists");
         }
 
         if(userRepository.existsByUsername(request.username())){
-            throw new RuntimeException("Username Already Exists");
+            throw new IllegalStateException("Username Already Exists");
         }
 
         User user= userMapper.toEntity(request);
         user.setPassword(passwordEncoder.encode(request.password()));
 
         RoleEntity userRole=roleRepository.findByName(Role.ROLE_USER)
-                .orElseThrow(() -> new RuntimeException("Role Not Found"));
+                .orElseThrow(() -> new IllegalStateException("Role Not Found"));
         user.getRoles().add(userRole);
 
         userRepository.save(user);
@@ -58,7 +59,7 @@ public class AuthService {
             new UsernamePasswordAuthenticationToken(request.username(), request.password()));
 
     User user=userRepository.findByUsername(request.username())
-            .orElseThrow(() -> new RuntimeException("Username Not Found"));
+            .orElseThrow(() -> new UsernameNotFoundException("Username Not Found"));
 
     String token = jwtService.generateToken(user);
     return userMapper.toAuthResponse(user,token);
